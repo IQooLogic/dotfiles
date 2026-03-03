@@ -1,0 +1,49 @@
+Host gitlab.arma
+  Hostname gitlab.arma
+  User git
+  IdentityFile "/home/milos/WORK/keys/git_auth"
+  HostKeyAlgorithms ssh-rsa
+  PubkeyAcceptedKeyTypes ssh-rsa
+
+Host github.com
+  Hostname github.com
+  User git
+  IdentityFile "/home/milos/WORK/keys/git_auth"
+  HostKeyAlgorithms ssh-rsa
+  PubkeyAcceptedKeyTypes ssh-rsa
+  
+Host ast.gitlab
+  Hostname ast.gitlab
+  User git
+  IdentityFile "/home/milos/WORK/keys/gitlab"
+  HostKeyAlgorithms ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-ed25519
+
+Host 10.0.0.221
+  Hostname ast.gitlab
+  User git
+  IdentityFile "/home/milos/WORK/keys/gitlab"
+  HostKeyAlgorithms ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-ed25519
+
+Host gitlab.ast.co.rs
+  Hostname ast.gitlab
+  User git
+  IdentityFile "/home/milos/WORK/keys/gitlab"
+  HostKeyAlgorithms ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-ed25519
+
+Host gitlab.prod.ast.local
+  HostName gitlab.prod.ast.local
+  User git
+	IdentityFile "/home/milos/WORK/keys/gitlab"
+  HostKeyAlgorithms ssh-rsa,ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-rsa,ssh-ed25519
+
+Host 49.13.131.191
+  Hostname 49.13.131.191
+  User milos
+  IdentityFile "/home/milos/WORK/keys/gitlab"
+  HostKeyAlgorithms ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-ed25519
+
