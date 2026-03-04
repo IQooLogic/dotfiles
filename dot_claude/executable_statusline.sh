@@ -1,72 +1,50 @@
 #!/bin/bash
+# statusline.sh — Claude Code status line entry point
+#
+# Modules (sourced in order):
+#   statusline/colors.sh     — ANSI color constants + colored()
+#   statusline/git.sh        — git branch + file-status segment  → $GIT_SEGMENT
+#   statusline/context.sh    — context-window bar + token label  → $CTX_BAR, $CTX_USAGE
+#   statusline/usage_api.sh  — Teams plan 5h/7d usage (line 2)
 
-# --- Colors ---
-RESET=$'\033[0m'
-GRAY=$'\033[90m'
-RED=$'\033[31m'
-GREEN=$'\033[32m'
-YELLOW=$'\033[33m'
-MAGENTA=$'\033[35m'
-CYAN=$'\033[36m'
-ORANGE=$'\033[38;5;214m'
+_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Helper functions ---
+# --- 1. Colors (must be first; other modules depend on it) ---
+# shellcheck source=statusline/colors.sh
+source "$_DIR/statusline/colors.sh"
 
-# colored COLOR TEXT — wrap text in a color then reset
-colored() { printf '%s%s%s' "$1" "$2" "$RESET"; }
-
-# --- Read JSON input ---
+# --- 2. Parse JSON input ---
 input=$(cat)
 MODEL_DISPLAY=$(echo "$input" | jq -r '.model.display_name')
 CURRENT_DIR=$(echo  "$input" | jq -r '.workspace.current_dir')
 PROJECT_DIR=$(echo  "$input" | jq -r '.workspace.project_dir')
-CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size')
-USAGE=$(echo        "$input" | jq    '.context_window.current_usage')
-TRANSCRIPT_PATH=$(echo "$input" | jq -r '.transcript_path // empty')
+CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size // 200000')
 
-# --- Context window usage percentage ---
-PERCENT_USED=0
-if [ "$USAGE" != "null" ]; then
-    CURRENT_TOKENS=$(echo "$USAGE" | jq '.input_tokens + .cache_creation_input_tokens + .cache_read_input_tokens')
-    PERCENT_USED=$(( CURRENT_TOKENS * 100 / CONTEXT_SIZE ))
-fi
+PERCENT_USED=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
+CURRENT_TOKEN_USAGE=$(echo "$input" | jq -r '
+  (.context_window.current_usage // null) |
+  if . == null then 0
+  else (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)
+  end
+')
 
-# --- Git: branch, staged count, modified count ---
-GIT_SEGMENT=""
-if git -c gc.auto=0 rev-parse --git-dir > /dev/null 2>&1; then
-    BRANCH=$(git -c gc.auto=0 branch --show-current 2>/dev/null)
-    if [ -n "$BRANCH" ]; then
-        STAGED=$(git -c gc.auto=0 diff --cached --name-only --diff-filter=d 2>/dev/null | wc -l | tr -d ' ')
-        MODIFIED=$(git -c gc.auto=0 diff --name-only --diff-filter=d 2>/dev/null | wc -l | tr -d ' ')
-        DELETED_STAGED=$(git -c gc.auto=0 diff --cached --name-only --diff-filter=D 2>/dev/null | wc -l | tr -d ' ')
-        DELETED_UNSTAGED=$(git -c gc.auto=0 diff --name-only --diff-filter=D 2>/dev/null | wc -l | tr -d ' ')
-        DELETED=$(( DELETED_STAGED + DELETED_UNSTAGED ))
-        UNTRACKED=$(git -c gc.auto=0 ls-files --others --exclude-standard 2>/dev/null | wc -l | tr -d ' ')
-        GIT_SEGMENT="$(colored "$MAGENTA" "$BRANCH")"
-        [ "$STAGED"    -gt 0 ] && GIT_SEGMENT="${GIT_SEGMENT} $(colored "$GREEN"  "+${STAGED}")"
-        [ "$MODIFIED"  -gt 0 ] && GIT_SEGMENT="${GIT_SEGMENT} $(colored "$YELLOW" "~${MODIFIED}")"
-        [ "$DELETED"   -gt 0 ] && GIT_SEGMENT="${GIT_SEGMENT} $(colored "$RED"    "-${DELETED}")"
-        [ "$UNTRACKED" -gt 0 ] && GIT_SEGMENT="${GIT_SEGMENT} $(colored "$CYAN"   "?${UNTRACKED}")"
-    fi
-fi
+# --- 3. Git segment ---
+# shellcheck source=statusline/git.sh
+source "$_DIR/statusline/git.sh"
 
-# --- Context progress bar (10 chars, filled=color, empty=gray) ---
-BAR_WIDTH=10
-FILLED=$(( PERCENT_USED * BAR_WIDTH / 100 ))
-EMPTY=$(( BAR_WIDTH - FILLED ))
-if   [ "$PERCENT_USED" -ge 80 ]; then BAR_COLOR="$RED"
-elif [ "$PERCENT_USED" -ge 50 ]; then BAR_COLOR="$YELLOW"
-else                                   BAR_COLOR="$GREEN"
-fi
-FILLED_STR="" EMPTY_STR=""
-for i in $(seq 1 $FILLED); do FILLED_STR="${FILLED_STR}█"; done
-for i in $(seq 1 $EMPTY);  do EMPTY_STR="${EMPTY_STR}░";  done
-CTX_BAR="$(colored "$BAR_COLOR" "$FILLED_STR")$(colored "$GRAY" "$EMPTY_STR") ${PERCENT_USED}%"
+# --- 4. Context bar + usage label ---
+# shellcheck source=statusline/context.sh
+source "$_DIR/statusline/context.sh"
 
-# --- Assemble and print status line ---
-printf '🧠 [%s] • 📦 %s • 🌿 %s • 🔥 %s • 📁 %s\n' \
-    "$(colored "$ORANGE"   "$MODEL_DISPLAY")" \
-    "$(colored "$CYAN"     "${CURRENT_DIR##*/}")" \
+# --- 5. Line 1: main status ---
+printf '🧠 [%s] • 📦 %s • 🌿 %s • 🔥 %s %s • 📁 %s\n' \
+    "$(colored "$ORANGE" "$MODEL_DISPLAY")" \
+    "$(colored "$CYAN"   "${CURRENT_DIR##*/}")" \
     "$GIT_SEGMENT" \
     "$CTX_BAR" \
-    "$(colored "$GRAY" "$PROJECT_DIR")"
+    "$(colored "$GRAY"   "$CTX_USAGE")" \
+    "$(colored "$GRAY"   "$PROJECT_DIR")"
+
+# --- 6. Line 2: Teams plan usage (printed only when available) ---
+# shellcheck source=statusline/usage_api.sh
+source "$_DIR/statusline/usage_api.sh"
