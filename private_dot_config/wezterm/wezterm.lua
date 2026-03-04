@@ -39,7 +39,7 @@ config.inactive_pane_hsb = {
 -- config.font = wezterm.font("JetBrainsMono NF", { weight = "Regular" })
 config.font = wezterm.font_with_fallback({
 	"JetBrainsMono Nerd Font",
-  	-- "JetBrainsMonoNL Nerd Font",
+	-- "JetBrainsMonoNL Nerd Font",
 	"Symbola",
 	"Noto Sans Symbols",
 	"DejaVu Sans",
@@ -47,7 +47,7 @@ config.font = wezterm.font_with_fallback({
 	-- "Symbols Nerd Font Mono",
 	-- "Noto Mono",
 	-- "JetBrainsMono NF",
-    -- "Noto Sans Symbols 2",
+	-- "Noto Sans Symbols 2",
 	-- "Apple Color Emoji",
 	-- "Segoe UI Emoji",
 	-- "Noto Color Emoji",
