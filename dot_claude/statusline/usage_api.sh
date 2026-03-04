@@ -1,34 +1,41 @@
 #!/bin/bash
 # statusline/usage_api.sh — Anthropic Teams plan usage (5-hour & 7-day windows)
-# Requires: colors.sh sourced beforehand.
+# Requires: colors.sh sourced beforehand (build_bar, colored, color constants).
 # Outputs:  Prints a second status line when usage data is available.
-# Side-effects: reads/writes /tmp/claude/statusline-usage-cache.json (60-second TTL)
+# Side-effects: reads/writes $_CACHE_FILE (TTL-controlled cache)
 
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
 _CACHE_DIR="/tmp/claude"
 _CACHE_FILE="$_CACHE_DIR/statusline-usage-cache.json"
+_DEBUG_FILE="$_CACHE_DIR/statusline-usage-debug.json"
+_ERR_FILE="$_CACHE_DIR/statusline-curl-err.txt"
 _CREDS_PATH="$HOME/.claude/.credentials.json"
-_CACHE_TTL=60   # seconds
+_CACHE_TTL=60        # seconds
+_USAGE_BAR_WIDTH=8   # block characters per bar
+_API_URL="https://api.anthropic.com/api/oauth/usage"
+_API_BETA_HEADER="anthropic-beta: oauth-2025-04-20"
+_USER_AGENT="claude-code/2.1.34"
+_CURL_TIMEOUT=8      # seconds
+
+# jq filter: extract all needed fields as @tsv; emits nothing when .five_hour absent.
+_JQ_USAGE_FILTER='
+    if .five_hour then
+      [
+        (.five_hour.utilization  | if . then round else 0 end | tostring),
+        (.five_hour.resets_at   // ""),
+        (.seven_day.utilization  | if . then round else 0 end | tostring),
+        (.seven_day.resets_at   // ""),
+        (.extra_usage.is_enabled // false | tostring),
+        (.extra_usage.utilization  | if . then round else 0 end | tostring),
+        (.extra_usage.used_credits  // 0 | tostring),
+        (.extra_usage.monthly_limit // 0 | tostring)
+      ] | @tsv
+    else empty
+    end'
 
 # --- Helpers ---
-
-# _build_usage_bar PCT WIDTH — print a coloured block-character bar
-_build_usage_bar() {
-    local pct=$1 width=$2
-    [ "$pct" -lt 0 ]   2>/dev/null && pct=0
-    [ "$pct" -gt 100 ] 2>/dev/null && pct=100
-    local filled=$(( pct * width / 100 ))
-    local empty=$(( width - filled ))
-    local bar_color
-    if   [ "$pct" -ge 90 ]; then bar_color="$RED"
-    elif [ "$pct" -ge 70 ]; then bar_color="$YELLOW"
-    elif [ "$pct" -ge 50 ]; then bar_color="$ORANGE"
-    else                         bar_color="$GREEN"
-    fi
-    local filled_str="" empty_str="" i
-    for ((i=0; i<filled; i++)); do filled_str+="█"; done
-    for ((i=0; i<empty;  i++)); do empty_str+="░";  done
-    printf '%s%s%s%s%s' "$bar_color" "$filled_str" "$GRAY" "$empty_str" "$RESET"
-}
 
 # _format_reset_time ISO_STR STYLE — convert ISO 8601 to compact local time
 #   STYLE "time"     → "3:45pm"
@@ -38,8 +45,9 @@ _format_reset_time() {
     [ -z "$iso_str" ] || [ "$iso_str" = "null" ] && return
     # Strip sub-second precision (e.g. .000) which confuses some date versions
     iso_str="${iso_str%%.*}"
-    # Append Z if no timezone offset present so date -d parses as UTC
-    [[ "$iso_str" =~ [+-][0-9]{2}:?[0-9]{2}$ ]] || iso_str="${iso_str}Z"
+    # Append Z only when no explicit timezone offset (+HH:MM / -HH:MM / +HHMM) is present.
+    [[ "$iso_str" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:?[0-9]{2}$ ]] \
+        || iso_str="${iso_str}Z"
     local epoch
     epoch=$(date -d "$iso_str" +%s 2>/dev/null) || return
     [ -z "$epoch" ] && return
@@ -49,11 +57,36 @@ _format_reset_time() {
     esac
 }
 
-# --- Fetch or load cached usage JSON ---
+# _fetch_usage_json — call the API and return JSON on stdout.
+#   Writes debug info to $_DEBUG_FILE. Returns nothing on failure.
+_fetch_usage_json() {
+    local token
+    token=$(jq -r '.claudeAiOauth.accessToken // empty' "$_CREDS_PATH" 2>/dev/null)
+    [ -z "$token" ] && return
+
+    local json curl_exit
+    json=$(curl -s --max-time "$_CURL_TIMEOUT" \
+        -H "Accept: application/json" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $token" \
+        -H "$_API_BETA_HEADER" \
+        -H "User-Agent: $_USER_AGENT" \
+        "$_API_URL" 2>"$_ERR_FILE")
+    curl_exit=$?
+
+    # Always write debug so we can inspect what the API returned.
+    { echo "exit=$curl_exit"; echo "$json"; } > "$_DEBUG_FILE"
+
+    if echo "$json" | jq -e '.five_hour' > /dev/null 2>&1; then
+        echo "$json"
+    fi
+}
+
+# _load_usage_json — return JSON from cache when fresh, else fetch and re-cache.
 _load_usage_json() {
     mkdir -p "$_CACHE_DIR"
 
-    # Remove empty/corrupt cache files so they don't linger
+    # Remove empty/corrupt cache files so they don't linger.
     if [ -f "$_CACHE_FILE" ] && ! [ -s "$_CACHE_FILE" ]; then
         rm -f "$_CACHE_FILE"
     fi
@@ -66,61 +99,67 @@ _load_usage_json() {
         fi
     fi
 
-    local token
-    token=$(jq -r '.claudeAiOauth.accessToken // empty' "$_CREDS_PATH" 2>/dev/null)
-    [ -z "$token" ] && return
-
-    local json curl_exit
-    json=$(curl -s --max-time 8 \
-        -H "Accept: application/json" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $token" \
-        -H "anthropic-beta: oauth-2025-04-20" \
-        -H "User-Agent: claude-code/2.1.34" \
-        "https://api.anthropic.com/api/oauth/usage" 2>/tmp/claude/statusline-curl-err.txt)
-    curl_exit=$?
-
-    # Always write debug so we can inspect what the API returned
-    { echo "exit=$curl_exit"; echo "$json"; } > "/tmp/claude/statusline-usage-debug.json"
-
-    if echo "$json" | jq -e '.five_hour' > /dev/null 2>&1; then
+    local json
+    json=$(_fetch_usage_json)
+    if [ -n "$json" ]; then
         echo "$json" > "$_CACHE_FILE"
         echo "$json"
     fi
 }
 
-# --- Main ---
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 _USAGE_JSON=$(_load_usage_json)
 
-if [ -n "$_USAGE_JSON" ] && echo "$_USAGE_JSON" | jq -e '.five_hour' > /dev/null 2>&1; then
-    _FIVE_PCT=$(echo "$_USAGE_JSON"   | jq -r '.five_hour.utilization  | if . then round else 0 end')
-    _FIVE_RESET=$(echo "$_USAGE_JSON" | jq -r '.five_hour.resets_at   // empty')
-    _WEEK_PCT=$(echo "$_USAGE_JSON"   | jq -r '.seven_day.utilization  | if . then round else 0 end')
-    _WEEK_RESET=$(echo "$_USAGE_JSON" | jq -r '.seven_day.resets_at   // empty')
+if [ -n "$_USAGE_JSON" ]; then
+    # Single jq call (using the named filter) extracts all fields as tab-separated values.
+    # Outputs nothing (empty) when .five_hour is absent.
+    read -r _FIVE_PCT _FIVE_RESET _WEEK_PCT _WEEK_RESET _EXTRA_ENABLED _EXTRA_PCT _EXTRA_USED _EXTRA_LIMIT \
+      < <(echo "$_USAGE_JSON" | jq -r "$_JQ_USAGE_FILTER")
 
-    _FIVE_BAR=$(_build_usage_bar "$_FIVE_PCT" 8)
-    _WEEK_BAR=$(_build_usage_bar "$_WEEK_PCT" 8)
+    # If .five_hour was absent jq emitted nothing and $_FIVE_PCT is empty; bail out.
+    [ -z "$_FIVE_PCT" ] && {
+        unset _USAGE_JSON _FIVE_PCT _FIVE_RESET _WEEK_PCT _WEEK_RESET \
+              _EXTRA_ENABLED _EXTRA_PCT _EXTRA_USED _EXTRA_LIMIT
+        unset -f _format_reset_time _fetch_usage_json _load_usage_json
+        unset _CACHE_DIR _CACHE_FILE _DEBUG_FILE _ERR_FILE _CREDS_PATH \
+              _CACHE_TTL _USAGE_BAR_WIDTH _API_URL _API_BETA_HEADER \
+              _USER_AGENT _CURL_TIMEOUT _JQ_USAGE_FILTER
+        return 0
+    }
+
+    _FIVE_BAR=$(build_bar "$_FIVE_PCT" "$_USAGE_BAR_WIDTH")
+    _WEEK_BAR=$(build_bar "$_WEEK_PCT" "$_USAGE_BAR_WIDTH")
 
     _FIVE_RESET_FMT=$(_format_reset_time "$_FIVE_RESET" "time")
     _WEEK_RESET_FMT=$(_format_reset_time "$_WEEK_RESET" "datetime")
 
     _FIVE_LABEL="5h: ${_FIVE_BAR} ${_FIVE_PCT}%"
-    [ -n "$_FIVE_RESET_FMT" ] && _FIVE_LABEL="${_FIVE_LABEL} ↺ ${_FIVE_RESET_FMT}"
+    [ -n "$_FIVE_RESET_FMT" ] && _FIVE_LABEL="${_FIVE_LABEL} • $(colored "$BLUE" "") ${_FIVE_RESET_FMT}"
 
     _WEEK_LABEL="7d: ${_WEEK_BAR} ${_WEEK_PCT}%"
-    [ -n "$_WEEK_RESET_FMT" ] && _WEEK_LABEL="${_WEEK_LABEL} ↺ ${_WEEK_RESET_FMT}"
+    [ -n "$_WEEK_RESET_FMT" ] && _WEEK_LABEL="${_WEEK_LABEL} • $(colored "$BLUE" "") ${_WEEK_RESET_FMT}"
 
-    _LINE2="$(colored "$GRAY" "🕔") ${_FIVE_LABEL}  $(colored "$GRAY" "📅") ${_WEEK_LABEL}"
+    _LINE2="$(colored "$GREEN" "") ${_FIVE_LABEL} 󰇙 $(colored "$GREEN" "󰺏") ${_WEEK_LABEL}"
 
-    # Extra credits block (only shown when the feature is enabled on the account)
-    _EXTRA_ENABLED=$(echo "$_USAGE_JSON" | jq -r '.extra_usage.is_enabled // false')
+    # Extra credits block (only shown when the feature is enabled on the account).
     if [ "$_EXTRA_ENABLED" = "true" ]; then
-        _EXTRA_PCT=$(echo "$_USAGE_JSON"  | jq -r '.extra_usage.utilization  | if . then round else 0 end')
-        _EXTRA_USED=$(echo "$_USAGE_JSON" | jq -r '.extra_usage.used_credits  // 0')
-        _EXTRA_LIMIT=$(echo "$_USAGE_JSON"| jq -r '.extra_usage.monthly_limit // 0')
-        _EXTRA_BAR=$(_build_usage_bar "$_EXTRA_PCT" 8)
+        _EXTRA_BAR=$(build_bar "$_EXTRA_PCT" "$_USAGE_BAR_WIDTH")
         _LINE2="${_LINE2}  $(colored "$GRAY" "💳") extra: ${_EXTRA_BAR} $(colored "$GRAY" "${_EXTRA_PCT}% (${_EXTRA_USED}/${_EXTRA_LIMIT})")"
     fi
 
     printf '%s\n' "$_LINE2"
 fi
+
+# ---------------------------------------------------------------------------
+# Cleanup private vars and functions
+# ---------------------------------------------------------------------------
+unset _USAGE_JSON _FIVE_PCT _FIVE_RESET _WEEK_PCT _WEEK_RESET \
+      _EXTRA_ENABLED _EXTRA_PCT _EXTRA_USED _EXTRA_LIMIT \
+      _FIVE_BAR _WEEK_BAR _FIVE_RESET_FMT _WEEK_RESET_FMT \
+      _FIVE_LABEL _WEEK_LABEL _EXTRA_BAR _LINE2
+unset -f _format_reset_time _fetch_usage_json _load_usage_json
+unset _CACHE_DIR _CACHE_FILE _DEBUG_FILE _ERR_FILE _CREDS_PATH \
+      _CACHE_TTL _USAGE_BAR_WIDTH _API_URL _API_BETA_HEADER \
+      _USER_AGENT _CURL_TIMEOUT _JQ_USAGE_FILTER

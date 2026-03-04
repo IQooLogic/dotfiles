@@ -22,3 +22,6 @@ if git -c gc.auto=0 rev-parse --git-dir > /dev/null 2>&1; then
         [ "$UNTRACKED" -gt 0 ] && GIT_SEGMENT="${GIT_SEGMENT} $(colored "$CYAN"   "?${UNTRACKED}")"
     fi
 fi
+
+# --- Cleanup private vars ---
+unset BRANCH STAGED MODIFIED DELETED_STAGED DELETED_UNSTAGED DELETED UNTRACKED

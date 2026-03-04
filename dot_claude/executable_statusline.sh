@@ -13,20 +13,20 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=statusline/colors.sh
 source "$_DIR/statusline/colors.sh"
 
-# --- 2. Parse JSON input ---
+# --- 2. Parse JSON input (single jq call) ---
 input=$(cat)
-MODEL_DISPLAY=$(echo "$input" | jq -r '.model.display_name')
-CURRENT_DIR=$(echo  "$input" | jq -r '.workspace.current_dir')
-PROJECT_DIR=$(echo  "$input" | jq -r '.workspace.project_dir')
-CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size // 200000')
-
-PERCENT_USED=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
-CURRENT_TOKEN_USAGE=$(echo "$input" | jq -r '
-  (.context_window.current_usage // null) |
-  if . == null then 0
-  else (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)
-  end
-')
+IFS=$'\t' read -r MODEL_DISPLAY CURRENT_DIR PROJECT_DIR CONTEXT_SIZE PERCENT_USED CURRENT_TOKEN_USAGE \
+  < <(echo "$input" | jq -r '[
+    .model.display_name,
+    .workspace.current_dir,
+    .workspace.project_dir,
+    (.context_window.context_window_size // 200000 | tostring),
+    (.context_window.used_percentage // 0 | floor | tostring),
+    ((.context_window.current_usage // null) |
+      if . == null then "0"
+      else ((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0) | tostring)
+      end)
+  ] | @tsv')
 
 # --- 3. Git segment ---
 # shellcheck source=statusline/git.sh
@@ -37,7 +37,7 @@ source "$_DIR/statusline/git.sh"
 source "$_DIR/statusline/context.sh"
 
 # --- 5. Line 1: main status ---
-printf '🧠 [%s] • 📦 %s • 🌿 %s • 🔥 %s %s • 📁 %s\n' \
+printf ' [%s] •  %s •  %s • 󰈸 %s %s •  %s\n' \
     "$(colored "$ORANGE" "$MODEL_DISPLAY")" \
     "$(colored "$CYAN"   "${CURRENT_DIR##*/}")" \
     "$GIT_SEGMENT" \
