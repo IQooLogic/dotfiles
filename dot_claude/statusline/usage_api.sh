@@ -36,10 +36,15 @@ _build_usage_bar() {
 _format_reset_time() {
     local iso_str="$1" style="$2"
     [ -z "$iso_str" ] || [ "$iso_str" = "null" ] && return
+    # Strip sub-second precision (e.g. .000) which confuses some date versions
+    iso_str="${iso_str%%.*}"
+    # Append Z if no timezone offset present so date -d parses as UTC
+    [[ "$iso_str" =~ [+-][0-9]{2}:?[0-9]{2}$ ]] || iso_str="${iso_str}Z"
     local epoch
     epoch=$(date -d "$iso_str" +%s 2>/dev/null) || return
+    [ -z "$epoch" ] && return
     case "$style" in
-        time)     LC_TIME=C date -d "@$epoch" +"%l:%M%P"        | sed 's/^ //' ;;
+        time)     LC_TIME=C date -d "@$epoch" +"%l:%M%P"         | sed 's/^ //' ;;
         datetime) LC_TIME=C date -d "@$epoch" +"%b %-d, %l:%M%P" | sed 's/ \+/ /g; s/^ //' ;;
     esac
 }
@@ -48,7 +53,12 @@ _format_reset_time() {
 _load_usage_json() {
     mkdir -p "$_CACHE_DIR"
 
-    if [ -f "$_CACHE_FILE" ]; then
+    # Remove empty/corrupt cache files so they don't linger
+    if [ -f "$_CACHE_FILE" ] && ! [ -s "$_CACHE_FILE" ]; then
+        rm -f "$_CACHE_FILE"
+    fi
+
+    if [ -f "$_CACHE_FILE" ] && [ -s "$_CACHE_FILE" ]; then
         local age=$(( $(date +%s) - $(stat -c %Y "$_CACHE_FILE" 2>/dev/null || echo 0) ))
         if [ "$age" -lt "$_CACHE_TTL" ]; then
             cat "$_CACHE_FILE"
@@ -60,14 +70,18 @@ _load_usage_json() {
     token=$(jq -r '.claudeAiOauth.accessToken // empty' "$_CREDS_PATH" 2>/dev/null)
     [ -z "$token" ] && return
 
-    local json
-    json=$(curl -s --max-time 5 \
+    local json curl_exit
+    json=$(curl -s --max-time 8 \
         -H "Accept: application/json" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $token" \
         -H "anthropic-beta: oauth-2025-04-20" \
         -H "User-Agent: claude-code/2.1.34" \
-        "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
+        "https://api.anthropic.com/api/oauth/usage" 2>/tmp/claude/statusline-curl-err.txt)
+    curl_exit=$?
+
+    # Always write debug so we can inspect what the API returned
+    { echo "exit=$curl_exit"; echo "$json"; } > "/tmp/claude/statusline-usage-debug.json"
 
     if echo "$json" | jq -e '.five_hour' > /dev/null 2>&1; then
         echo "$json" > "$_CACHE_FILE"
