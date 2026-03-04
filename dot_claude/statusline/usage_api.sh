@@ -90,10 +90,10 @@ if [ -n "$_USAGE_JSON" ] && echo "$_USAGE_JSON" | jq -e '.five_hour' > /dev/null
     _FIVE_RESET_FMT=$(_format_reset_time "$_FIVE_RESET" "time")
     _WEEK_RESET_FMT=$(_format_reset_time "$_WEEK_RESET" "datetime")
 
-    _FIVE_LABEL="5h: ${_FIVE_BAR} ${_FIVE_PCT}%)"
+    _FIVE_LABEL="5h: ${_FIVE_BAR} ${_FIVE_PCT}%"
     [ -n "$_FIVE_RESET_FMT" ] && _FIVE_LABEL="${_FIVE_LABEL} ↺ ${_FIVE_RESET_FMT}"
 
-    _WEEK_LABEL="7d: ${_WEEK_BAR} ${_WEEK_PCT}%)"
+    _WEEK_LABEL="7d: ${_WEEK_BAR} ${_WEEK_PCT}%"
     [ -n "$_WEEK_RESET_FMT" ] && _WEEK_LABEL="${_WEEK_LABEL} ↺ ${_WEEK_RESET_FMT}"
 
     _LINE2="$(colored "$GRAY" "🕔") ${_FIVE_LABEL}  $(colored "$GRAY" "📅") ${_WEEK_LABEL}"
