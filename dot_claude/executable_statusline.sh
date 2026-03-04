@@ -38,12 +38,12 @@ source "$_DIR/statusline/context.sh"
 
 # --- 5. Line 1: main status ---
 printf ' [%s] •  %s •  %s • 󰈸 %s %s •  %s\n' \
-    "$(colored "$ORANGE" "$MODEL_DISPLAY")" \
-    "$(colored "$CYAN"   "${CURRENT_DIR##*/}")" \
+    "$(colored "$CLAUDE_MODEL" "$MODEL_DISPLAY")" \
+    "$(colored "$PROJECT"     "${CURRENT_DIR##*/}")" \
     "$GIT_SEGMENT" \
     "$CTX_BAR" \
-    "$(colored "$GRAY"   "$CTX_USAGE")" \
-    "$(colored "$GRAY"   "$PROJECT_DIR")"
+    "$(colored "$GHOST"        "$CTX_USAGE")" \
+    "$(colored "$PATH_COL"      "$PROJECT_DIR")"
 
 # --- 6. Line 2: Teams plan usage (printed only when available) ---
 # shellcheck source=statusline/usage_api.sh

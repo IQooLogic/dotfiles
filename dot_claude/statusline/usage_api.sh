@@ -136,17 +136,17 @@ if [ -n "$_USAGE_JSON" ]; then
     _WEEK_RESET_FMT=$(_format_reset_time "$_WEEK_RESET" "datetime")
 
     _FIVE_LABEL="5h: ${_FIVE_BAR} ${_FIVE_PCT}%"
-    [ -n "$_FIVE_RESET_FMT" ] && _FIVE_LABEL="${_FIVE_LABEL} • $(colored "$BLUE" "") ${_FIVE_RESET_FMT}"
+    [ -n "$_FIVE_RESET_FMT" ] && _FIVE_LABEL="${_FIVE_LABEL} • $(colored "$TIME" "") ${_FIVE_RESET_FMT}"
 
     _WEEK_LABEL="7d: ${_WEEK_BAR} ${_WEEK_PCT}%"
-    [ -n "$_WEEK_RESET_FMT" ] && _WEEK_LABEL="${_WEEK_LABEL} • $(colored "$BLUE" "") ${_WEEK_RESET_FMT}"
+    [ -n "$_WEEK_RESET_FMT" ] && _WEEK_LABEL="${_WEEK_LABEL} • $(colored "$TIME" "") ${_WEEK_RESET_FMT}"
 
-    _LINE2="$(colored "$GREEN" "") ${_FIVE_LABEL} 󰇙 $(colored "$GREEN" "󰺏") ${_WEEK_LABEL}"
+    _LINE2="$(colored "$CTX_LOW" "") ${_FIVE_LABEL} 󰇙 $(colored "$CTX_LOW" "󰺏") ${_WEEK_LABEL}"
 
     # Extra credits block (only shown when the feature is enabled on the account).
     if [ "$_EXTRA_ENABLED" = "true" ]; then
         _EXTRA_BAR=$(build_bar "$_EXTRA_PCT" "$_USAGE_BAR_WIDTH")
-        _LINE2="${_LINE2}  $(colored "$GRAY" "💳") extra: ${_EXTRA_BAR} $(colored "$GRAY" "${_EXTRA_PCT}% (${_EXTRA_USED}/${_EXTRA_LIMIT})")"
+        _LINE2="${_LINE2}  $(colored "$GHOST" "💳") extra: ${_EXTRA_BAR} $(colored "$GHOST" "${_EXTRA_PCT}% (${_EXTRA_USED}/${_EXTRA_LIMIT})")"
     fi
 
     printf '%s\n' "$_LINE2"
