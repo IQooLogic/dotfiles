@@ -46,7 +46,9 @@ build_bar() {
     else                         bar_color="$CTX_LOW"
     fi
     local filled_str="" empty_str="" i
-    for ((i=0; i<filled; i++)); do filled_str+="█"; done
-    for ((i=0; i<empty;  i++)); do empty_str+="░";  done
+    # for ((i=0; i<filled; i++)); do filled_str+="█"; done
+    # for ((i=0; i<empty;  i++)); do empty_str+="░";  done
+    for ((i=0; i<filled; i++)); do filled_str+="●"; done
+    for ((i=0; i<empty;  i++)); do empty_str+="○";  done
     printf '%s%s%s%s%s' "$bar_color" "$filled_str" "$CTX_EMPTY" "$empty_str" "$RESET"
 }
