@@ -42,8 +42,17 @@
     "pr-review-toolkit@claude-plugins-official": true,
     "coderabbit@claude-plugins-official": true,
     "firecrawl@claude-plugins-official": true,
-    "circleback@claude-plugins-official": true,
+    "circleback@claude-plugins-official": false,
     "claude-session-driver@superpowers-marketplace": true
+  },
+  "extraKnownMarketplaces": {
+    "voltagent-subagents": {
+      "source": {
+        "source": "github",
+        "repo": "VoltAgent/awesome-claude-code-subagents"
+      },
+      "autoUpdate": true
+    }
   },
   "autoUpdatesChannel": "latest"
 }

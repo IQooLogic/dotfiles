@@ -12,7 +12,7 @@ _CACHE_FILE="$_CACHE_DIR/statusline-usage-cache.json"
 _DEBUG_FILE="$_CACHE_DIR/statusline-usage-debug.json"
 _ERR_FILE="$_CACHE_DIR/statusline-curl-err.txt"
 _CREDS_PATH="$HOME/.claude/.credentials.json"
-_CACHE_TTL=60        # seconds
+_CACHE_TTL=180       # seconds (3 min — usage data changes slowly; avoids rate-limiting)
 _USAGE_BAR_WIDTH=8   # block characters per bar
 _API_URL="https://api.anthropic.com/api/oauth/usage"
 _API_BETA_HEADER="anthropic-beta: oauth-2025-04-20"
@@ -79,10 +79,17 @@ _fetch_usage_json() {
 
     if echo "$json" | jq -e '.five_hour' > /dev/null 2>&1; then
         echo "$json"
+    elif echo "$json" | jq -e '.error' > /dev/null 2>&1; then
+        local err_type err_msg
+        err_type=$(echo "$json" | jq -r '.error.type // "unknown"')
+        err_msg=$(echo "$json" | jq -r '.error.message // "no message"')
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [${err_type}] ${err_msg}" >> "$_ERR_FILE"
     fi
 }
 
 # _load_usage_json — return JSON from cache when fresh, else fetch and re-cache.
+#   Falls back to stale cache when fetch fails (e.g. rate-limited) so the
+#   status line keeps showing last-known data instead of disappearing.
 _load_usage_json() {
     mkdir -p "$_CACHE_DIR"
 
@@ -104,6 +111,10 @@ _load_usage_json() {
     if [ -n "$json" ]; then
         echo "$json" > "$_CACHE_FILE"
         echo "$json"
+    elif [ -f "$_CACHE_FILE" ] && [ -s "$_CACHE_FILE" ]; then
+        # Fetch failed (rate-limited, network error, etc.) — serve stale cache
+        # so the status line continues to show last-known usage and reset times.
+        cat "$_CACHE_FILE"
     fi
 }
 
