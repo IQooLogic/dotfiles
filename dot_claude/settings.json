@@ -4,7 +4,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh",
+    "command": "~/.claude/statusline-zig.sh",
     "padding": 0
   },
   "enabledPlugins": {
