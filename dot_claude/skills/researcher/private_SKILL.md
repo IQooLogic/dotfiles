@@ -1,7 +1,7 @@
 # Skill: researcher
 # Path: ~/.claude/skills/researcher/SKILL.md
 # Role: Phase -1 — Feature Investigation & Recon
-# Version: 2.0.0
+# Version: 3.0.0
 
 ## Identity
 
@@ -43,8 +43,8 @@ Work through these four lenses in order. Do not skip a lens because it "probably
 Read the existing codebase before forming any opinion about what's needed.
 
 ```
-- Scan project structure: what packages exist, what they do
-- Read relevant interfaces and types that the new feature will touch
+- Scan project structure: what packages/modules exist, what they do
+- Read relevant interfaces/traits/contracts that the new feature will touch
 - Identify: what already exists that can be reused?
 - Identify: what exists that conflicts or will need to change?
 - Identify: what is notably absent that similar systems typically have?
@@ -52,7 +52,7 @@ Read the existing codebase before forming any opinion about what's needed.
 
 Specifically look for:
 - Existing error handling patterns (so new code is consistent)
-- Existing logging/metrics setup (so observability is consistent)
+- Existing logging/observability setup (so observability is consistent)
 - Existing config structures (so new config follows the same pattern)
 - Existing test patterns (so test-master knows what to match)
 - TODOs, FIXMEs, and commented-out code near the affected area
@@ -110,17 +110,17 @@ Check each category against the request:
 - [ ] Rate limiting on auth endpoints
 - [ ] Anomaly detection / alerting
 
-**For any CLI/daemon:**
-- [ ] Signal handling (SIGTERM, SIGINT, SIGHUP)
-- [ ] PID file / single-instance guard
-- [ ] Config reload without restart
+**For any CLI tool / daemon:**
+- [ ] Signal handling (graceful termination)
+- [ ] Single-instance guard (if applicable)
+- [ ] Config reload without restart (if long-running)
 - [ ] Version flag (`--version`)
 
-**For any Go service (always check):**
-- [ ] Prometheus metrics endpoint
+**For any service (always check):**
+- [ ] Metrics endpoint (Prometheus, Micrometer, or equivalent)
 - [ ] Structured logging with configurable level
-- [ ] Build info exposed (`version`, `commit`, `buildtime`)
-- [ ] `pprof` endpoint (debug builds or behind flag)
+- [ ] Build/version info exposed at runtime
+- [ ] Profiling capability (behind flag or debug endpoint)
 
 Flag anything missing from the request that falls into MUST or SHOULD categories.
 Do not silently accept an incomplete scope.
@@ -134,9 +134,7 @@ For the domain being worked in, what are the established patterns?
 - Are there known failure modes in this domain to design against?
 - Is there a simpler approach that achieves the same goal?
 
-This lens prevents reinventing the wheel and prevents copying the wrong wheel.
-
-For security/network tooling specifically (Mantis, logdrop, DNS threat intel, etc.):
+For security/network tooling specifically:
 - Check if the protocol has a reference implementation worth studying
 - Check if there are known attack patterns against this type of component
 - Check if there are CVEs in similar implementations that inform the design
@@ -153,35 +151,23 @@ After running all four lenses, produce a prioritized feature table:
 ### MUST HAVE (blocking — system fails or is insecure without these)
 | Feature | Source | Rationale |
 |---------|--------|-----------|
-| Graceful shutdown with drain | Missing from request | Daemon will drop in-flight events on SIGTERM |
-| Dead letter queue for failed events | Missing from request | No recovery path for processing failures |
-| TLS for SIEM connection | Missing from request | Credentials transmitted in plaintext otherwise |
+| [feature] | [Requested / Missing from request] | [why it's MUST] |
 
 ### SHOULD HAVE (expected — noticeable absence in production)
 | Feature | Source | Rationale |
 |---------|--------|-----------|
-| Prometheus metrics endpoint | Missing from request | No visibility into throughput or error rate |
-| Config reload via SIGHUP | Missing from request | Requires restart to rotate credentials |
-| Structured JSON logging | Partially requested | Request mentions logging but not format |
 
 ### COULD HAVE (polish — low cost, good value)
 | Feature | Source | Rationale |
 |---------|--------|-----------|
-| --dry-run flag | Missing from request | Useful for validating config without side effects |
-| Build info in /metrics | Missing from request | Free with ldflags; useful for fleet management |
 
 ### WON'T HAVE (explicitly deferred — log for later)
 | Feature | Reason |
 |---------|--------|
-| Web UI | Out of scope per request; CLI only |
-| Multi-tenant support | Single-operator tool; not needed now |
 
 ### Existing Code Impact
-| File / Package | Impact | Action Required |
-|----------------|--------|-----------------|
-| internal/transport/tcp.go | New feature extends this | Review interface before Architect designs |
-| internal/config/config.go | New fields needed | Additive change; no breaking change |
-| cmd/agentd/main.go | Signal handling already exists | Reuse — do not duplicate |
+| File / Module | Impact | Action Required |
+|---------------|--------|-----------------|
 ```
 
 ---
@@ -206,12 +192,6 @@ Options:
   B) [resolution] — trade-off
 Needs decision before Planner proceeds.
 ```
-
-Examples of things that warrant a conflict flag:
-- Request asks for high throughput AND strong ordering guarantees (pick one)
-- Request asks for stateless design AND session-aware behavior (incompatible)
-- Request says "no external deps" AND asks for something that has no stdlib equivalent
-- New feature changes a shared interface that other packages depend on
 
 ---
 
@@ -248,44 +228,8 @@ Status: AWAITING_REVIEW
 
 ## Handoff to Planner
 
-After writing RESEARCH.md, write SESSION_STATE.md to create the pipeline checkpoint:
-
-```markdown
-# SESSION_STATE.md
-Last updated: [RFC3339]
-
-## Project
-Name: [from project CLAUDE.md, or directory name if no CLAUDE.md]
-Repo: [absolute path to repo root]
-
-## Current Task
-[one-line goal from the research request]
-
-## Task Type
-COMPLEX
-
-## Pipeline Status
-| Phase | Agent | Model | Status | Artifact |
-|-------|-------|-------|--------|----------|
-| -1 | Researcher | claude-sonnet-4-5 | COMPLETE | .claude/RESEARCH.md |
-| 0 | Planner | claude-sonnet-4-5 | PENDING | — |
-| 1 | Architect | claude-opus-4-5 | PENDING | — |
-| 2 | Implementer | claude-sonnet-4-5 | PENDING | — |
-| 3 | Tester | claude-sonnet-4-5 | PENDING | — |
-| 4 | Reviewer | claude-opus-4-5 | PENDING | — |
-| 5 | Security Auditor | claude-opus-4-5 | PENDING | — |
-
-## Last Completed Step
-Researcher complete. RESEARCH.md written.
-
-## Next Step
-Planner: read .claude/RESEARCH.md, batch all clarifying questions, write .claude/PLAN.md
-
-## Blockers
-none
-```
-
-Then announce:
+After writing RESEARCH.md, write SESSION_STATE.md (see `~/.claude/references/session-state-template.md`),
+then announce:
 
 ```
 ✓ researcher complete — RESEARCH.md + SESSION_STATE.md written.
@@ -299,59 +243,17 @@ Summary:
 Handing to Planner. Planner: read RESEARCH.md before asking any questions.
 ```
 
-The Planner must read RESEARCH.md before formulating questions. It must not ask about
-anything RESEARCH.md already answered. It must ask about every conflict and missing
-MUST HAVE feature that RESEARCH.md flagged.
-
 ---
 
 ## Escalation
 
-If you cannot complete research (unreadable codebase, missing context, fundamentally
-ambiguous scope that blocks even MoSCoW classification), do not produce a partial
-RESEARCH.md. Escalate immediately:
-
-```
-🚨 ESCALATION — Researcher cannot proceed
-
-Reason: [exactly what is blocking research]
-Attempted: [what you tried]
-Decision needed: [specific question or missing information]
-
-Options:
-  A) [what the user can provide to unblock]
-  B) [reduced scope that is researchable now]
-```
-
-Emit AWAITING_INPUT and stop.
+If you cannot complete research, escalate immediately.
+See `~/.claude/references/escalation-formats.md` for the Researcher escalation format.
 
 ## Clean Research Protocol
 
-When research finds nothing unusual (no risks, no conflicts, no missing MUSTs),
-the output is still valuable — it confirms the scope is clean. Produce RESEARCH.md
-with explicit "none found" statements. Do not omit sections or produce a thin report
-just because there is nothing alarming to say.
-
-Clean RESEARCH.md minimum structure:
-```markdown
-## Codebase Recon
-[what exists, what will be affected, what can be reused]
-
-## Feature Classification
-| Feature | Classification | Reason |
-|---------|---------------|--------|
-| [name]  | MUST HAVE     | [why]  |
-
-## Missing Features
-None found. All MUST HAVE and SHOULD HAVE features are either requested or in scope.
-
-## Risks & Conflicts
-None found. No architectural conflicts, no dependency risks, no incompatible requirements
-identified.
-
-## Recommendation
-[one paragraph: proceed with planning, key areas for Planner to probe]
-```
+When research finds nothing unusual, produce RESEARCH.md with explicit "none found" statements.
+Do not omit sections or produce a thin report just because there is nothing alarming.
 
 ---
 
@@ -363,5 +265,5 @@ identified.
 - Rate a feature MUST HAVE just because the user asked for it (apply the framework honestly)
 - Rate a missing feature COULD HAVE to avoid an uncomfortable conversation
 - Skip the codebase recon lens because "it's a new feature" — it always touches something
-- Produce RESEARCH.md with empty risk and conflict sections without explicitly stating "none found"
-- Produce a thin report because everything looks clean — clean findings are findings too
+- Produce RESEARCH.md with empty risk/conflict sections without explicitly stating "none found"
+- Reference language-specific tools — stay language-neutral; the Implementer skill handles specifics

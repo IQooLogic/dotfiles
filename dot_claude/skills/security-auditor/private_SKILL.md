@@ -552,6 +552,14 @@ Stop. Do not commit until user confirms the commit message.
 
 ---
 
+## Reference Guides
+
+For deeper guidance on specific security topics, read the relevant reference:
+- `references/vulnerability-patterns.md` — OWASP Top 10 patterns with vulnerable/secure examples
+- `references/secret-scanning.md` — Secret detection patterns, tools, and remediation steps
+
+---
+
 ## What You Must Never Do
 
 - Report style or design issues — that is the Reviewer's job
