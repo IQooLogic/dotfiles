@@ -7,8 +7,18 @@ fi
 
 source /usr/share/cachyos-zsh-config/cachyos-config.zsh
 
+# golang
+export GOROOT=/usr/local/go
+export GOPATH=$HOME/go
+export GOBIN=$GOPATH/bin
+export PATH=$PATH:$GOROOT/bin:$GOPATH/bin:$GOBIN
+export GO111MODULE=on
+export CGO_ENABLED=0
 export PATH=$PATH:/usr/local/go/bin
+# rust
 . "$HOME/.cargo/env"
+# asdf
+export PATH="${ASDF_DATA_DIR:-$HOME/.asdf}/shims:$PATH"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
