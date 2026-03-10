@@ -1,0 +1,53 @@
+# theme
+general.import = ["~/.config/alacritty/themes/cyberdream.toml"]
+
+[window]
+padding = { x = 2, y = 2 }
+dynamic_padding = false
+opacity = 0.9
+blur = true
+startup_mode = "Maximized"
+
+[font]
+size = 14.0
+
+[font.normal]
+family = "JetBrainsMono Nerd Font"
+style = "Regular"
+
+# Alacritty doesn't have a single 'font-feature' toggle like Ghostty.
+# It respects font-config settings. If you need to disable ligatures specifically:
+# [font]
+# builtin_box_drawing = true
+
+[colors]
+# Cyberdream is usually not built-in. You'll need to paste the hex values 
+# or import a separate cyberdream.toml file. 
+# I'll include the standard Cyberdream palette logic here:
+[colors.primary]
+background = '#16181a'
+foreground = '#ffffff'
+
+[colors.normal]
+black = '#16181a'
+red = '#ff5c57'
+green = '#5af78e'
+yellow = '#f3f99d'
+blue = '#57c7ff'
+magenta = '#ff6ac1'
+cyan = '#9aedfe'
+white = '#f1f1f0'
+
+[keyboard]
+# IMPORTANT: Alacritty does NOT have internal 'new_split' or 'next_tab' actions.
+# You must handle these in Zellij. These keybindings are now mapped 
+# to send the correct escape sequences to Zellij.
+
+bindings = [
+  # Since Alacritty has no splits, we leave these for Zellij to catch.
+  # If you want Alacritty to "do" something, you'd map to 'SpawnNewInstance'.
+  { key = "W", mods = "Control|Shift", action = "Quit" },
+  
+  # Navigation and splits should be handled by your zellij.kdl.
+  # Alacritty's job is just to pass these keys through.
+]
