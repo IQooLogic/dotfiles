@@ -39,11 +39,12 @@
     "skill-creator@claude-plugins-official": true,
     "semgrep@claude-plugins-official": false,
     "pr-review-toolkit@claude-plugins-official": true,
-    "coderabbit@claude-plugins-official": true,
+    "coderabbit@claude-plugins-official": false,
     "firecrawl@claude-plugins-official": true,
     "circleback@claude-plugins-official": false,
     "claude-session-driver@superpowers-marketplace": true,
-    "commit-commands@claude-plugins-official": true
+    "commit-commands@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "voltagent-subagents": {
@@ -54,5 +55,6 @@
       "autoUpdate": true
     }
   },
+  "effortLevel": "medium",
   "autoUpdatesChannel": "latest"
 }
