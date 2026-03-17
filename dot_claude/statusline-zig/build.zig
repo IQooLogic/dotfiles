@@ -4,18 +4,20 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const exe = b.addExecutable(.{
-        .name = "statusline",
+    const mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .strip = if (optimize != .Debug) true else null,
         .single_threaded = true,
+        .omit_frame_pointer = if (optimize != .Debug) true else null,
+        .unwind_tables = if (optimize != .Debug) .none else null,
     });
-    if (optimize != .Debug) {
-        exe.root_module.omit_frame_pointer = true;
-        exe.root_module.unwind_tables = .none;
-    }
+
+    const exe = b.addExecutable(.{
+        .name = "statusline",
+        .root_module = mod,
+    });
 
     b.installArtifact(exe);
 
@@ -28,9 +30,7 @@ pub fn build(b: *std.Build) void {
 
     // --- Tests ---
     const unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = mod,
     });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);

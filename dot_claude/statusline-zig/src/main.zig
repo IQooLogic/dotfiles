@@ -88,9 +88,9 @@ fn buildBar(writer: anytype, pct: u32, width: u32) !void {
 
 /// Same as buildBar but returns a heap-allocated string.  Caller owns memory.
 fn buildBarAlloc(alloc: mem.Allocator, pct: u32, width: u32) ![]u8 {
-    var buf = std.ArrayList(u8).init(alloc);
-    try buildBar(buf.writer(), pct, width);
-    return buf.toOwnedSlice();
+    var buf: std.ArrayList(u8) = .empty;
+    try buildBar(buf.writer(alloc), pct, width);
+    return buf.toOwnedSlice(alloc);
 }
 
 // ============================================================
@@ -224,7 +224,7 @@ fn gitRun(alloc: mem.Allocator, args: []const []const u8) !?[]u8 {
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Ignore;
     try child.spawn();
-    const out = try child.stdout.?.reader().readAllAlloc(alloc, 256 * 1024);
+    const out = try child.stdout.?.readToEndAlloc(alloc, 256 * 1024);
     const term = try child.wait();
     switch (term) {
         .Exited => |code| if (code != 0) { alloc.free(out); return null; },
@@ -292,8 +292,8 @@ fn buildGitSegment(alloc: mem.Allocator) ![]u8 {
     const info = try getGitInfo(alloc) orelse return try alloc.dupe(u8, "");
     defer alloc.free(info.branch);
 
-    var buf = std.ArrayList(u8).init(alloc);
-    const w = buf.writer();
+    var buf: std.ArrayList(u8) = .empty;
+    const w = buf.writer(alloc);
 
     // Branch name is always shown
     try colored(w, C_BRANCH, info.branch);
@@ -323,7 +323,7 @@ fn buildGitSegment(alloc: mem.Allocator) ![]u8 {
         try colored(w, C_UNTRACKED, s);
     }
 
-    return buf.toOwnedSlice();
+    return buf.toOwnedSlice(alloc);
 }
 
 // ============================================================
@@ -347,10 +347,10 @@ fn buildContextSegment(
     current_tokens: u64,
     context_size:   u64,
 ) !struct { bar: []u8, usage: []u8 } {
-    var bar_buf = std.ArrayList(u8).init(alloc);
-    try buildBar(bar_buf.writer(), percent_used, CTX_BAR_WIDTH);
-    try bar_buf.writer().print(" {d}%", .{percent_used});
-    const bar = try bar_buf.toOwnedSlice();
+    var bar_buf: std.ArrayList(u8) = .empty;
+    try buildBar(bar_buf.writer(alloc), percent_used, CTX_BAR_WIDTH);
+    try bar_buf.writer(alloc).print(" {d}%", .{percent_used});
+    const bar = try bar_buf.toOwnedSlice(alloc);
 
     const cur_str = try fmtK(alloc, current_tokens);
     defer alloc.free(cur_str);
@@ -430,7 +430,7 @@ fn fetchUsageJson(alloc: mem.Allocator) !?[]u8 {
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Ignore;
     try child.spawn();
-    const out = try child.stdout.?.reader().readAllAlloc(alloc, 1024 * 1024);
+    const out = try child.stdout.?.readToEndAlloc(alloc, 1024 * 1024);
     _ = try child.wait();
 
     // Write debug file (best-effort)
@@ -455,7 +455,7 @@ fn fetchUsageJson(alloc: mem.Allocator) !?[]u8 {
             if (err_v == .object) {
                 const etype = if (err_v.object.get("type")) |t| (if (t == .string) t.string else "unknown") else "unknown";
                 const emsg  = if (err_v.object.get("message")) |m| (if (m == .string) m.string else "no message") else "no message";
-                appendToFile(ERR_FILE, etype, emsg);
+                appendToFile(alloc, ERR_FILE, etype, emsg);
             }
         }
         alloc.free(out);
@@ -465,12 +465,13 @@ fn fetchUsageJson(alloc: mem.Allocator) !?[]u8 {
     return out;
 }
 
-fn appendToFile(path: []const u8, etype: []const u8, emsg: []const u8) void {
+fn appendToFile(alloc: mem.Allocator, path: []const u8, etype: []const u8, emsg: []const u8) void {
     const f = fs.cwd().openFile(path, .{ .mode = .write_only }) catch
               fs.cwd().createFile(path, .{}) catch return;
     defer f.close();
     f.seekFromEnd(0) catch return;
-    f.writer().print("[{s}] {s}\n", .{ etype, emsg }) catch {};
+    const line = fmt.allocPrint(alloc, "[{s}] {s}\n", .{ etype, emsg }) catch return;
+    f.writeAll(line) catch {};
 }
 
 /// Return the mtime of `path` as Unix seconds, or 0 on error.
@@ -615,7 +616,7 @@ fn formatResetTime(alloc: mem.Allocator, iso_str: []const u8, style: []const u8)
     ep_child.stdout_behavior = .Pipe;
     ep_child.stderr_behavior = .Ignore;
     try ep_child.spawn();
-    const ep_out = try ep_child.stdout.?.reader().readAllAlloc(alloc, 64);
+    const ep_out = try ep_child.stdout.?.readToEndAlloc(alloc, 64);
     defer alloc.free(ep_out);
     const ep_term = try ep_child.wait();
     switch (ep_term) {
@@ -638,24 +639,24 @@ fn formatResetTime(alloc: mem.Allocator, iso_str: []const u8, style: []const u8)
     fmt_child.stdout_behavior = .Pipe;
     fmt_child.stderr_behavior = .Ignore;
     try fmt_child.spawn();
-    const fmt_out = try fmt_child.stdout.?.reader().readAllAlloc(alloc, 64);
+    const fmt_out = try fmt_child.stdout.?.readToEndAlloc(alloc, 64);
     defer alloc.free(fmt_out);
     _ = try fmt_child.wait();
 
     // Trim whitespace, collapse multiple spaces, strip leading space
     const trimmed = mem.trim(u8, fmt_out, " \t\n\r");
-    var result = std.ArrayList(u8).init(alloc);
+    var result: std.ArrayList(u8) = .empty;
     var prev_space = false;
     for (trimmed) |ch| {
         if (ch == ' ') {
-            if (!prev_space) try result.append(ch);
+            if (!prev_space) try result.append(alloc, ch);
             prev_space = true;
         } else {
-            try result.append(ch);
+            try result.append(alloc, ch);
             prev_space = false;
         }
     }
-    var out = try result.toOwnedSlice();
+    var out = try result.toOwnedSlice(alloc);
     if (out.len > 0 and out[0] == ' ') {
         const stripped = try alloc.dupe(u8, out[1..]);
         alloc.free(out);
@@ -676,7 +677,7 @@ fn printUsageLine(alloc: mem.Allocator) !void {
     defer alloc.free(usage.five_reset);
     defer alloc.free(usage.week_reset);
 
-    const stdout = std.io.getStdOut().writer();
+    const stdout = std.fs.File{ .handle = std.posix.STDOUT_FILENO };
 
     const five_bar = try buildBarAlloc(alloc, usage.five_pct, USAGE_BAR_WIDTH);
     defer alloc.free(five_bar);
@@ -689,34 +690,34 @@ fn printUsageLine(alloc: mem.Allocator) !void {
     defer if (week_reset_fmt) |s| alloc.free(s);
 
     // Five-hour label: "5h: <bar> 42%[ • <icon> 3:45pm]"
-    var five_label = std.ArrayList(u8).init(alloc);
-    defer five_label.deinit();
-    try five_label.writer().print("5h: {s} {d}%", .{ five_bar, usage.five_pct });
+    var five_label: std.ArrayList(u8) = .empty;
+    defer five_label.deinit(alloc);
+    try five_label.writer(alloc).print("5h: {s} {d}%", .{ five_bar, usage.five_pct });
     if (five_reset_fmt) |rt| {
-        try five_label.appendSlice(" • ");
-        try colored(five_label.writer(), C_TIME, ICON_RESET);
-        try five_label.writer().print(" {s}", .{rt});
+        try five_label.appendSlice(alloc, " • ");
+        try colored(five_label.writer(alloc), C_TIME, ICON_RESET);
+        try five_label.writer(alloc).print(" {s}", .{rt});
     }
 
     // Seven-day label
-    var week_label = std.ArrayList(u8).init(alloc);
-    defer week_label.deinit();
-    try week_label.writer().print("7d: {s} {d}%", .{ week_bar, usage.week_pct });
+    var week_label: std.ArrayList(u8) = .empty;
+    defer week_label.deinit(alloc);
+    try week_label.writer(alloc).print("7d: {s} {d}%", .{ week_bar, usage.week_pct });
     if (week_reset_fmt) |rt| {
-        try week_label.appendSlice(" • ");
-        try colored(week_label.writer(), C_TIME, ICON_RESET);
-        try week_label.writer().print(" {s}", .{rt});
+        try week_label.appendSlice(alloc, " • ");
+        try colored(week_label.writer(alloc), C_TIME, ICON_RESET);
+        try week_label.writer(alloc).print(" {s}", .{rt});
     }
 
     // " <five_label> 󰇙 <calendar> <week_label>"
     try colored(stdout, C_CTX_LOW, ICON_CLOCK_5H);
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try stdout.writeAll(five_label.items);
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try stdout.writeAll(ICON_DIVIDER);
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try colored(stdout, C_CTX_LOW, ICON_CALENDAR);
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try stdout.writeAll(week_label.items);
 
     if (usage.extra_enabled) {
@@ -728,11 +729,11 @@ fn printUsageLine(alloc: mem.Allocator) !void {
         try colored(stdout, C_GHOST, ICON_CARD);
         try stdout.writeAll(" extra: ");
         try stdout.writeAll(extra_bar);
-        try stdout.writeByte(' ');
+        try stdout.writeAll(&.{' '});
         try colored(stdout, C_GHOST, extra_detail);
     }
 
-    try stdout.writeByte('\n');
+    try stdout.writeAll(&.{'\n'});
 }
 
 // ============================================================
@@ -805,19 +806,19 @@ test "fmtK" {
 
 test "colored output" {
     const alloc = testing.allocator;
-    var buf = std.ArrayList(u8).init(alloc);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(alloc);
 
-    try colored(buf.writer(), C_CTX_LOW, "hello");
+    try colored(buf.writer(alloc), C_CTX_LOW, "hello");
     try testing.expectEqualStrings(C_CTX_LOW ++ "hello" ++ RESET, buf.items);
 }
 
 test "buildBar low percentage" {
     const alloc = testing.allocator;
-    var buf = std.ArrayList(u8).init(alloc);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(alloc);
 
-    try buildBar(buf.writer(), 30, 10);
+    try buildBar(buf.writer(alloc), 30, 10);
     const s = buf.items;
 
     // Should start with green (CTX_LOW), have 3 filled, switch to CTX_EMPTY, 7 empty, then RESET
@@ -832,10 +833,10 @@ test "buildBar low percentage" {
 
 test "buildBar medium percentage" {
     const alloc = testing.allocator;
-    var buf = std.ArrayList(u8).init(alloc);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(alloc);
 
-    try buildBar(buf.writer(), 60, 10);
+    try buildBar(buf.writer(alloc), 60, 10);
     const s = buf.items;
 
     // Should use amber (CTX_MED)
@@ -848,10 +849,10 @@ test "buildBar medium percentage" {
 
 test "buildBar high percentage" {
     const alloc = testing.allocator;
-    var buf = std.ArrayList(u8).init(alloc);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(alloc);
 
-    try buildBar(buf.writer(), 90, 10);
+    try buildBar(buf.writer(alloc), 90, 10);
     const s = buf.items;
 
     // Should use red (CTX_HIGH)
@@ -866,27 +867,27 @@ test "buildBar edge cases" {
     const alloc = testing.allocator;
     {
         // 0%
-        var buf = std.ArrayList(u8).init(alloc);
-        defer buf.deinit();
-        try buildBar(buf.writer(), 0, 8);
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(alloc);
+        try buildBar(buf.writer(alloc), 0, 8);
         const stripped = try stripAnsi(alloc, buf.items);
         defer alloc.free(stripped);
         try testing.expectEqualStrings("○○○○○○○○", stripped);
     }
     {
         // 100%
-        var buf = std.ArrayList(u8).init(alloc);
-        defer buf.deinit();
-        try buildBar(buf.writer(), 100, 8);
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(alloc);
+        try buildBar(buf.writer(alloc), 100, 8);
         const stripped = try stripAnsi(alloc, buf.items);
         defer alloc.free(stripped);
         try testing.expectEqualStrings("●●●●●●●●", stripped);
     }
     {
         // >100 clamped
-        var buf = std.ArrayList(u8).init(alloc);
-        defer buf.deinit();
-        try buildBar(buf.writer(), 150, 8);
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(alloc);
+        try buildBar(buf.writer(alloc), 150, 8);
         const stripped = try stripAnsi(alloc, buf.items);
         defer alloc.free(stripped);
         try testing.expectEqualStrings("●●●●●●●●", stripped);
@@ -1023,7 +1024,7 @@ test "buildContextSegment zero" {
 
 /// Test helper: strip ANSI escape sequences from a byte slice.
 fn stripAnsi(alloc: mem.Allocator, input: []const u8) ![]u8 {
-    var out = std.ArrayList(u8).init(alloc);
+    var out: std.ArrayList(u8) = .empty;
     var i: usize = 0;
     while (i < input.len) {
         if (input[i] == 0x1b and i + 1 < input.len and input[i + 1] == '[') {
@@ -1032,11 +1033,11 @@ fn stripAnsi(alloc: mem.Allocator, input: []const u8) ![]u8 {
             while (i < input.len and input[i] != 'm') : (i += 1) {}
             if (i < input.len) i += 1; // skip 'm'
         } else {
-            try out.append(input[i]);
+            try out.append(alloc, input[i]);
             i += 1;
         }
     }
-    return out.toOwnedSlice();
+    return out.toOwnedSlice(alloc);
 }
 
 // ============================================================
@@ -1050,8 +1051,16 @@ pub fn main() !void {
     defer arena.deinit();
     const alloc = arena.allocator();
 
+    // Parse CLI args
+    const args = try std.process.argsAlloc(alloc);
+    var show_path = false;
+    for (args[1..]) |arg| {
+        if (mem.eql(u8, arg, "--show-path")) show_path = true;
+    }
+
     // Read JSON from stdin
-    const stdin_raw = try std.io.getStdIn().reader().readAllAlloc(alloc, 4 * 1024 * 1024);
+    const stdin_file = std.fs.File{ .handle = std.posix.STDIN_FILENO };
+    const stdin_raw = try stdin_file.readToEndAlloc(alloc, 4 * 1024 * 1024);
 
     // Parse
     const parsed_result = try parseInput(alloc, stdin_raw);
@@ -1069,30 +1078,32 @@ pub fn main() !void {
     //       model_display  current_dir_basename  git_segment
     //       ctx_bar  ctx_usage  project_dir
     // -----------------------------------------------------------------------
-    const stdout = std.io.getStdOut().writer();
+    const stdout = std.fs.File{ .handle = std.posix.STDOUT_FILENO };
 
     try stdout.writeAll(ICON_LEADING);   //
     try stdout.writeAll(" [");
     try colored(stdout, C_CLAUDE_MODEL, inp.model_display);
     try stdout.writeAll("] \u{2022} "); // • (bullet + space)
     try stdout.writeAll(ICON_FOLDER);   //
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try colored(stdout, C_PROJECT, basename(inp.current_dir));
     try stdout.writeAll(" \u{2022} ");  // •
     try stdout.writeAll(ICON_BRANCH);   //
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try stdout.writeAll(git_segment);
     try stdout.writeAll(" \u{2022} ");  // •
     try stdout.writeAll(ICON_FLAME);    // 󰈸
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try stdout.writeAll(ctx.bar);
-    try stdout.writeByte(' ');
+    try stdout.writeAll(&.{' '});
     try colored(stdout, C_GHOST, ctx.usage);
-    try stdout.writeAll(" \u{2022} ");  // •
-    try stdout.writeAll(ICON_PATH);     //
-    try stdout.writeByte(' ');
-    try colored(stdout, C_PATH, inp.project_dir);
-    try stdout.writeByte('\n');
+    if (show_path) {
+        try stdout.writeAll(" \u{2022} ");  // •
+        try stdout.writeAll(ICON_PATH);     //
+        try stdout.writeAll(&.{' '});
+        try colored(stdout, C_PATH, inp.project_dir);
+    }
+    try stdout.writeAll(&.{'\n'});
 
     // Line 2 — printed only when usage data is available
     printUsageLine(alloc) catch {};
