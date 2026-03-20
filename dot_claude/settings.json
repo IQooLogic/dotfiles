@@ -56,5 +56,18 @@
     }
   },
   "effortLevel": "medium",
-  "autoUpdatesChannel": "latest"
+  "autoUpdatesChannel": "latest",
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before stopping, check if this session created or modified any files under a docs/ directory. If none were touched, approve the stop immediately. If docs were touched, verify: (1) file is in the correct subdirectory per the docs convention in CLAUDE.md (plans, specs, adrs, research, benchmarks, notes), (2) filename follows YYYYMMDD_slug.md with lowercase hyphen-separated slug, (3) file has front-matter with title, status, and date, (4) docs/index.md has been updated with an entry for every new or renamed doc sorted by date descending, (5) superseded docs were moved to archive with status updated. If all rules pass, report compliance then ask the user if they want to commit. If any rule is violated, block the stop and list each violation with the file path and what needs fixing. Do not fix anything autonomously."
+          }
+        ]
+      }
+    ]
+  }
 }
