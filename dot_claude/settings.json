@@ -2,6 +2,19 @@
   "attribution": {
     "commit": ""
   },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Check if this session created or modified any files under a docs/ directory. If none were touched, return {\"decision\": \"approve\", \"reason\": \"No docs changed.\"}. If docs were touched, verify: (1) file is in the correct subdirectory per the docs convention in CLAUDE.md (plans, specs, adrs, research, benchmarks, notes), (2) filename follows YYYYMMDD_slug.md with lowercase hyphen-separated slug, (3) file has front-matter with title, status, and date, (4) docs/index.md has been updated with an entry for every new or renamed doc sorted by date descending, (5) superseded docs were moved to archive with status updated. If all rules pass, return {\"decision\": \"approve\", \"reason\": \"Docs convention verified.\"}. If any rule is violated, return {\"decision\": \"block\", \"reason\": \"<list each violation with file path and what needs fixing>\"}. You MUST respond with ONLY a JSON object, no other text."
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline-zig.sh",
@@ -27,7 +40,6 @@
     "claude-code-setup@claude-plugins-official": true,
     "obsidian@obsidian-skills": true,
     "frontend-design@claude-plugins-official": true,
-    "fullstack-dev-skills@fullstack-dev-skills": true,
     "elements-of-style@superpowers-marketplace": true,
     "episodic-memory@superpowers-marketplace": true,
     "superpowers@superpowers-marketplace": true,
@@ -56,18 +68,5 @@
     }
   },
   "effortLevel": "medium",
-  "autoUpdatesChannel": "latest",
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Check if this session created or modified any files under a docs/ directory. If none were touched, return {\"decision\": \"approve\", \"reason\": \"No docs changed.\"}. If docs were touched, verify: (1) file is in the correct subdirectory per the docs convention in CLAUDE.md (plans, specs, adrs, research, benchmarks, notes), (2) filename follows YYYYMMDD_slug.md with lowercase hyphen-separated slug, (3) file has front-matter with title, status, and date, (4) docs/index.md has been updated with an entry for every new or renamed doc sorted by date descending, (5) superseded docs were moved to archive with status updated. If all rules pass, return {\"decision\": \"approve\", \"reason\": \"Docs convention verified.\"}. If any rule is violated, return {\"decision\": \"block\", \"reason\": \"<list each violation with file path and what needs fixing>\"}. You MUST respond with ONLY a JSON object, no other text."
-          }
-        ]
-      }
-    ]
-  }
+  "autoUpdatesChannel": "latest"
 }
