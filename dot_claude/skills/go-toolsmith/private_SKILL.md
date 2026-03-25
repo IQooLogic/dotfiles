@@ -20,6 +20,9 @@ description: >
 
 Read only the reference file for the active mode.
 
+> **IMPORTANT**: This is a **skill**, not an agent type. Always invoke it with the `Skill` tool.
+> Never use `Agent(subagent_type="go-toolsmith")` — that will fail. Run verification commands directly via `Bash`.
+
 ---
 
 ## Pipeline Integration
