@@ -39,7 +39,7 @@ config.inactive_pane_hsb = {
 -- config.font = wezterm.font("JetBrainsMono NF", { weight = "Regular" })
 config.font = wezterm.font_with_fallback({
 	"JetBrainsMono Nerd Font",
-  	-- "JetBrainsMonoNL Nerd Font",
+	-- "JetBrainsMonoNL Nerd Font",
 	"Symbola",
 	"Noto Sans Symbols",
 	"DejaVu Sans",
@@ -47,7 +47,7 @@ config.font = wezterm.font_with_fallback({
 	-- "Symbols Nerd Font Mono",
 	-- "Noto Mono",
 	-- "JetBrainsMono NF",
-    -- "Noto Sans Symbols 2",
+	-- "Noto Sans Symbols 2",
 	-- "Apple Color Emoji",
 	-- "Segoe UI Emoji",
 	-- "Noto Color Emoji",
@@ -145,6 +145,23 @@ config.keys = {
 		key = "z",
 		mods = "CTRL|ALT|SHIFT",
 		action = act.SpawnCommandInNewWindow({ args = { "zellij" } }),
+	},
+	-- Reset font size to default (CTRL+0)
+	{ key = "0", mods = "CTRL", action = act.ResetFontSize },
+}
+
+config.mouse_bindings = {
+	-- Scrolling up while holding CTRL increases the font size
+	{
+		event = { Down = { streak = 1, button = { WheelUp = 1 } } },
+		mods = "CTRL",
+		action = act.IncreaseFontSize,
+	},
+	-- Scrolling down while holding CTRL decreases the font size
+	{
+		event = { Down = { streak = 1, button = { WheelDown = 1 } } },
+		mods = "CTRL",
+		action = act.DecreaseFontSize,
 	},
 }
 
