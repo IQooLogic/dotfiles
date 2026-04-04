@@ -56,6 +56,7 @@ description: >-
   </example>
 model: opencode-go/kimi-k2.5
 mode: subagent
+temperature: 0.3
 tools:
   bash: false
 ---

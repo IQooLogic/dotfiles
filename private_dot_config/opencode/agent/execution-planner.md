@@ -30,6 +30,7 @@ description: >-
   </example>
 model: opencode-go/minimax-m2.7
 mode: subagent
+temperature: 0.0
 tools:
   bash: false
 ---
