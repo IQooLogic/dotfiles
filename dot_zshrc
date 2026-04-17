@@ -15,6 +15,13 @@ export PATH=/home/milos/.opencode/bin:$PATH
 
 export PATH="$HOME/.local/bin:$PATH"
 
+export GOROOT=/usr/lib/go
+export GOPATH=$HOME/go
+export GOBIN=$GOPATH/bin
+export PATH=$PATH:$GOROOT/bin:$GOPATH/bin:$GOBIN
+export GO111MODULE=on
+export CGO_ENABLED=0
+
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/home/milos/.lmstudio/bin"
 # End of LM Studio CLI section
