@@ -1,16 +1,22 @@
 -- Pull in the wezterm API
 local wezterm = require("wezterm")
+local mux = wezterm.mux
 
 -- This will hold the configuration.
 local config = wezterm.config_builder()
 
--- config.enable_wayland = true
--- config.front_end = "OpenGL"
+config.enable_wayland = false
+config.front_end = "OpenGL"
 -- This is where you actually apply your config choices
+
+wezterm.on("gui-startup", function(cmd)
+	local tab, pane, window = mux.spawn_window(cmd or {})
+	window:gui_window():maximize()
+end)
 
 -- For example, changing the color scheme:
 -- config.color_scheme = "Catppuccin Mocha"
-config.font_size = 18.0
+config.font_size = 14.0
 
 -- config.color_scheme = "GruvboxDarkHard"
 config.colors = require("cyberdream")
