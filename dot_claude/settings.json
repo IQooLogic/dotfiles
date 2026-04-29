@@ -67,6 +67,6 @@
       "autoUpdate": true
     }
   },
-  "effortLevel": "medium",
+  "effortLevel": "high",
   "autoUpdatesChannel": "latest"
 }
