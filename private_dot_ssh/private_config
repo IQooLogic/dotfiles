@@ -53,3 +53,10 @@ Host 162.55.165.22
   IdentityFile "~/.ssh/gitlab"
   HostKeyAlgorithms ssh-ed25519
   PubkeyAcceptedKeyTypes ssh-ed25519
+
+Host 49.13.131.191
+  Hostname 49.13.131.191
+  User milos
+  IdentityFile "~/.ssh/gitlab"
+  HostKeyAlgorithms ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-ed25519
