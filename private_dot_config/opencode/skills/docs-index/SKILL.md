@@ -3,53 +3,47 @@ name: docs-index
 description: Use when the user asks to "rebuild the docs index", "update docs/index.md", "check for docs drift", or after manual file moves under docs/. Walks the docs/ tree, regenerates docs/index.md as a single flat table sorted by date desc, and reports naming/front-matter violations without modifying other files.
 ---
 
-You are a meticulous librarian. The `docs/index.md` index drifts whenever a skill forgets to update it or a file is moved manually. This skill is the reconciliation step: scan disk, rewrite the index, report drift.
+Rebuild `docs/index.md` from disk truth. Report drift. Do not modify other files.
 
-### PHASE 1: Scan
-1. Walk `docs/` recursively. Include `docs/archive/` so archived rows are preserved.
-2. For each `*.md` file (skip `index.md` itself), parse:
-   - **Path** — relative to `docs/`
-   - **Date** — prefer the `date:` field in front matter; fall back to the `YYYYMMDD` prefix of the filename if front matter is missing.
-   - **Title** — first `# ...` heading line.
-   - **Status** — `status:` field; default to `active` if absent.
-   - **Summary** — the first non-empty paragraph after the front matter, truncated to 80 chars.
+## Phase 1: Scan
 
-### PHASE 2: Validate
-Report each violation but do not refuse to write the index:
-1. Filename does not match `YYYYMMDD_<lowercase-hyphen-slug>.md`.
-2. File is in `docs/` root or wrong subdirectory (must be in `plans|specs|adrs|research|benchmarks|notes|archive`).
+Walk `docs/` recursively (including `archive/`). For each `*.md` (skip `index.md`):
+- **Path** — relative to `docs/`
+- **Date** — `date:` front matter, fallback to `YYYYMMDD` filename prefix
+- **Title** — first `#` heading
+- **Status** — `status:` field, default `active`
+- **Summary** — first non-empty paragraph after front matter, truncated to 80 chars
+
+## Phase 2: Validate
+
+Report each violation (do not refuse to write):
+
+1. Filename doesn't match `YYYYMMDD_<lowercase-hyphen-slug>.md`.
+2. File in `docs/` root or wrong subdirectory (must be in `plans|specs|adrs|research|benchmarks|notes|archive`).
 3. Missing front-matter title, `status:`, or `date:`.
-4. `status: superseded` but file is not in `docs/archive/`.
-5. File in `docs/archive/` without `status: superseded`.
-6. `supersedes:` references a path that does not exist.
+4. `status: superseded` but not in `archive/`.
+5. File in `archive/` without `status: superseded`.
+6. `supersedes:` references nonexistent path.
 
-### PHASE 3: Rewrite
-Read the existing `docs/index.md`. Preserve any prose **before** the first `|` table delimiter (intro paragraphs, conventions notes). Replace the table itself with a single flat table sorted by date desc; tied dates sort alphabetical by filename:
+## Phase 3: Rewrite index
+
+Preserve prose before the first `|` table delimiter. Replace table with flat list sorted by date desc (ties alphabetically by filename):
 
 ```markdown
-# Documentation Index
-
-<preserved prose, if any>
-
-| Date       | File                                  | Summary                          |
-|------------|---------------------------------------|----------------------------------|
-| YYYY-MM-DD | <subdir>/<file>.md                    | <one-line summary>               |
-| ...        | ...                                   | ...                              |
+| Date       | File                              | Summary                          |
+|------------|-----------------------------------|----------------------------------|
+| YYYY-MM-DD | <subdir>/<file>.md                | <one-line summary>               |
 ```
 
-Archived files appear in the same table; their `File` column path begins with `archive/`. This matches the global docs-convention in `~/.claude/CLAUDE.md`.
+Archived files appear in the same table with `archive/` prefix.
 
-### PHASE 4: Report
-Output:
+## Phase 4: Report
+
 ```
 INDEX REWRITTEN
 - <N> entries (<A> active, <S> superseded)
 - <K> violations:
   - <path>: <violation>
-  ...
 ```
 
-If `K == 0`, output `- 0 violations` and nothing else.
-
-**Exit Condition:**
-`docs/index.md` rewritten. No other docs modified. Violations listed (or zero confirmed). If the user wants violations fixed, they invoke the appropriate skill (`adr`, `architect`, etc.) per file.
+If `K == 0`: `- 0 violations`.

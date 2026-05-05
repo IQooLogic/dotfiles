@@ -3,77 +3,50 @@ name: migrate
 description: Use when the user asks to "write a migration", "add a column", "rename/drop a column", "change the schema", or otherwise needs a backward-compatible database schema change. Designs forward+rollback migration pairs, classifies safe vs breaking changes, splits breaking changes across deploys, and writes an accompanying note documenting the deploy sequence.
 ---
 
-You are a paranoid Database Reliability Engineer. You assume the application is mid-deploy when the migration runs: old code AND new code are both reading and writing the schema. A migration that breaks under that assumption is rejected.
+Design backward-compatible schema changes. Assume old and new code both run against the schema mid-deploy.
 
-### PHASE 1: Tooling Detection
-Detect the migration tool in this order — first match wins:
-1. **Project CLAUDE.md.** If `./CLAUDE.md` (or `docs/CLAUDE.md`) names a migration tool or directory layout, use it.
-2. **Active spec.** If invoked with a target spec that names a migration tool, follow it.
-3. **Repo layout heuristics:**
-   - `migrations/` or `db/migrations/` with numbered `*.up.sql`/`*.down.sql` → `golang-migrate`
-   - `migrations/` with `migrate.hcl` or `atlas.hcl` → `atlas`
-   - `db/queries/` with `sqlc.yaml` → `sqlc` (typically uses `golang-migrate` under the hood)
+## Phase 1: Detect tooling
 
-If multiple heuristics match, ask the user once. If none match, default to `golang-migrate` and state the choice.
+Check `./CLAUDE.md` for declared migration tool. Check repo for `migrations/` with `*.up.sql`/`*.down.sql` (golang-migrate), `migrate.hcl` (atlas), or `db/queries/` with `sqlc.yaml` (sqlc+golang-migrate). If unclear, ask once. Default: golang-migrate.
 
-### PHASE 2: Breaking Change Audit
-Before writing anything, classify every requested change:
+## Phase 2: Classify changes
 
-**Safe (deploys alongside old code):**
-- Adding a nullable column
-- Adding a new table
-- Adding a non-unique index `CONCURRENTLY` (Postgres)
-- Adding an enum value at the end (Postgres)
+**Safe** (works alongside old code):
+- Adding nullable column, new table, non-unique index concurrently
+- Adding enum value at end (Postgres)
 
-**Breaking (multi-step required):**
-- Dropping a column → 3 deploys (stop reading → stop writing → drop)
-- Renaming a column → add new + dual-write + backfill + swap reads + drop old
-- Adding NOT NULL without default → add nullable, backfill, then SET NOT NULL
-- Tightening constraints (CHECK, UNIQUE on existing data) → ADD CONSTRAINT NOT VALID, then VALIDATE
-- Changing column types in incompatible ways
+**Breaking** (multi-step required):
+- Dropping column → 3 deploys: stop reading → stop writing → drop
+- Renaming column → add new + dual-write + backfill + swap reads + drop old
+- Adding NOT NULL without default → add nullable, backfill, SET NOT NULL
+- Tightening constraints → ADD CONSTRAINT NOT VALID, then VALIDATE
+- Incompatible type changes
 
-If any change is breaking, output the multi-step plan and refuse to write a single-step migration. The user must approve splitting into N migrations across N deploys.
+Halt on breaking changes until user approves the multi-deploy plan.
 
-### PHASE 3: Write Migrations
-For each step, produce a forward + rollback pair:
+## Phase 3: Write migrations
+
+Forward + rollback pair per step:
 - `migrations/<NNNN>_<slug>.up.sql`
 - `migrations/<NNNN>_<slug>.down.sql`
 
-Numbering: continue from the highest existing migration number. Pad to 4 digits.
+Pad numbers to 4 digits, continuing from highest existing. Use `IF NOT EXISTS`/`IF EXISTS` where the tool allows.
 
-Both files idempotent where the tool allows (`IF NOT EXISTS`, `IF EXISTS`).
+## Phase 4: Backfills
 
-### PHASE 4: Backfills
-If the change requires moving data (rename, NOT NULL with default, type change):
+If data movement is needed:
+- Small dataset: include in `*.up.sql`.
+- Large dataset: write `cmd/backfill_<slug>/main.go` — respects `context.Context`, batched, idempotent. Reference in deploy sequence.
 
-- **Small dataset / single transaction acceptable:** include the backfill as part of the `*.up.sql` step where appropriate.
-- **Large or long-running:** write a separate backfill program at `cmd/backfill_<slug>/main.go` that respects `context.Context`, processes in batches with explicit batch size and pause, and is idempotent (re-running is safe). Reference it in the deploy sequence.
+State which approach and why.
 
-State explicitly which approach you chose and why.
+## Phase 5: Write note
 
-### PHASE 5: Write a Note
-Create `docs/notes/YYYYMMDD_<slug>-migration.md`:
+Create `docs/notes/YYYYMMDD_<slug>-migration.md` per docs-convention. Include `related_spec:` if applicable. Sections:
+1. **Change Summary**
+2. **Compatibility Analysis** — which old code paths work mid-deploy
+3. **Deploy Sequence** — exact order: migration → deploy → backfill → next migration
+4. **Rollback Plan** — what `down.sql` does, what data is lost
+5. **Files** — list of `.sql` files and any `cmd/backfill_*` programs
 
-```text
-# Migration: [Title]
-
-status: active
-date: YYYY-MM-DD
-related_spec: docs/specs/<file>.md   # if applicable
-```
-
-Sections (exact names):
-1. **Change Summary** — what's changing, plain English
-2. **Compatibility Analysis** — which old code paths still work mid-deploy, which break
-3. **Deploy Sequence** — exact order: migration → code deploy → backfill → next migration
-4. **Rollback Plan** — exactly what `down.sql` does and what data is lost
-5. **Files** — list of `migrations/*.sql` files written, plus any `cmd/backfill_*` programs
-
-### PHASE 6: Index
-Append to `docs/index.md`:
-`| YYYY-MM-DD | notes/YYYYMMDD_<slug>-migration.md | <one-line summary> |`
-
-Sort by date desc.
-
-**Exit Condition:**
-All migration files on disk, backfill plan defined, note written, index updated, breaking changes either split into multiple deploys or refused.
+Update `docs/index.md`.
