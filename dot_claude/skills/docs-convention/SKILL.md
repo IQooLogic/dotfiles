@@ -1,105 +1,78 @@
 ---
 name: docs-convention
-description: >
-  Enforces a strict documentation directory structure and file naming convention.
-  Use this skill automatically whenever creating, naming, moving, or referencing any
-  file under a docs/ directory — including plans, specs, ADRs, research docs,
-  benchmarks, and notes. Trigger on any request to "write a spec", "create a plan",
-  "document this decision", "write up research on", "record a benchmark", or any
-  similar documentation task. Also trigger when the user asks where to put a doc,
-  how to name a doc, or wants to create or update docs/index.md.
+description: Use whenever creating, naming, moving, or referencing any file under a docs/ directory — plans, specs, ADRs, research, benchmarks, postmortems, notes. Trigger on "write a spec", "create a plan", "document this decision", "write up research on", "record a benchmark", or questions about where to put a doc or how to name it. Only applies in repos where docs/ already follows the structure below.
 ---
 
 # Docs Convention
 
-## Directory Structure
+Only applies in repos where `docs/` already exists with this structure. If absent, surface to the user — do not create it.
+
+## Directory structure
 
 ```
 docs/
   plans/        # phased build plans, roadmaps
   specs/        # functional and technical specifications
-  adrs/         # architecture decision records (project-scoped, irreversible choices)
-  research/     # technology comparisons, tradeoff analysis, reusable cross-project reference
-  benchmarks/   # performance results, profiling data, comparisons
-  postmortems/  # wrong decisions, bad assumptions, wasted effort — anything costing >1 day
-  notes/        # catch-all for everything else
-  archive/      # superseded docs only — move here, never delete
-  index.md      # flat index of all active docs with one-line summaries
+  adrs/         # architecture decision records (immutable post-acceptance)
+  research/     # technology comparisons, cross-project tradeoff analysis
+  benchmarks/   # performance results, profiling data
+  postmortems/  # incidents / bad decisions costing >1 day
+  notes/        # catch-all: redteam audits, migration notes, advisories
+  archive/      # superseded docs — move here, never delete
+  index.md      # flat table of all docs sorted by date desc
 ```
 
 ## Naming
 
-```
-docs/<dir>/YYYYMMDD_<slug>.md
-```
+`docs/<dir>/YYYYMMDD_<slug>.md` — date is creation date, slug is lowercase-hyphen-separated. Never change dates retroactively.
 
-- Date = creation date, never changed retroactively
-- Slug: lowercase, hyphen-separated, no spaces
+## Front matter (required on every doc)
 
-**Examples:**
-```
-docs/specs/20260319_mantis-fingerprinting.md
-docs/adrs/20260319_logdrop-transport-format.md
-docs/research/20260319_json-vs-syslog-framing.md
-docs/benchmarks/20260319_archibald-ingest-throughput.md
-```
-
-## Required Front Matter
-
-Every doc must open with:
-
-```
+```yaml
 # Title
-
 status: draft | active | superseded
 date: YYYY-MM-DD
-supersedes: <filename>  # only if replacing an older doc
 ```
 
-## index.md Format
+## Cross-skill front-matter fields (contract — do not rename)
 
-Flat table, sorted by date descending:
+| Field              | Producer skill     | Consumer skill(s)                    | Points to                                  |
+|--------------------|--------------------|--------------------------------------|--------------------------------------------|
+| `supersedes`       | adr/architect/plan | docs-index, docs-lint                | filename of replaced doc                   |
+| `superseded_by`    | adr/architect/plan | docs-index, docs-lint                | filename of replacement (on archived doc)  |
+| `related_adrs`     | architect          | docs-lint                            | list of `docs/adrs/*.md`                   |
+| `related_research` | architect          | docs-lint                            | list of `docs/research/*.md`               |
+| `related_specs`    | plan, migrate      | docs-lint                            | list of `docs/specs/*.md`                  |
+| `related_spec`     | migrate            | docs-lint                            | single `docs/specs/*.md`                   |
+| `audits`           | redteam            | implementer, telemetry, docs-lint    | the audited `docs/specs/*.md` (REQUIRED)   |
+| `commit`           | benchmark          | (provenance)                         | short SHA at run time                      |
+| `target`           | benchmark          | (provenance)                         | `<package>:<pattern>`                      |
+| `incident_start`   | postmortem         | docs-lint                            | `YYYY-MM-DD HH:MM TZ`                      |
+| `incident_end`     | postmortem         | docs-lint                            | `YYYY-MM-DD HH:MM TZ`                      |
+| `severity`         | postmortem         | (triage)                             | `SEV-<n>`                                  |
+| `target_completion`| plan               | (schedule)                           | date or `open`                             |
+
+## Section name contracts (do not rename)
+
+- Redteam audits: `Critical Vulnerabilities` — each entry: `- [ ] CV-<n>: <title>` with `Trigger:`, `Impact:`, `Detection:` sub-bullets. Parsed by `telemetry` and `implementer` Phase 0 gate.
+- Specs: `Domain Boundaries`, `State Management`, `Execution Sequence`, `Error Taxonomy` — parsed by `implementer`.
+
+## index.md format
+
+Flat table sorted by date desc:
 
 ```
-| Date       | File                                        | Summary                              |
-|------------|---------------------------------------------|--------------------------------------|
-| 2026-03-19 | specs/20260319_mantis-fingerprinting.md     | JA4/JA4T TLS fingerprinting spec     |
-| 2026-03-19 | research/20260319_json-vs-syslog-framing.md | Why NDJSON over syslog for transport |
+| Date       | File                              | Summary                          |
+|------------|-----------------------------------|----------------------------------|
+| YYYY-MM-DD | <subdir>/<file>.md                | <one-line summary>               |
 ```
 
-## Postmortem Template
-
-Every file under `docs/postmortems/` must use this structure — no exceptions:
-
-```markdown
-# Title
-
-status: active
-date: YYYY-MM-DD
-project: <project>
-
-## What happened
-
-## Why it happened
-<!-- Root cause only. Not symptoms, not timeline. One or two sentences. -->
-
-## Cost
-<!-- Time lost, rework required, downstream impact. Be specific. -->
-
-## What changes as a result
-<!-- Concrete actions: code, process, tooling. If nothing changes, don't write the doc. -->
-
-## How to detect this earlier next time
-<!-- The detection heuristic. This is the most important field. -->
-```
-
-The last field is mandatory. A postmortem without a detection heuristic is a confession, not a learning.
+Archived docs appear in the same table with `archive/` prefix in the File column.
 
 ## Rules
 
-- Apply this convention automatically — no confirmation needed
-- ADRs are project-scoped and point-in-time. Research docs are reusable and cross-project
-- Postmortems cover any wrong decision or bad assumption costing more than one day — not just production incidents
-- When superseding a doc: update its status header, move to `archive/`, update `index.md`
-- When looking for relevant docs: always read `docs/index.md` first before scanning the tree
-- When creating any doc: add a row to `docs/index.md` immediately
+- ADRs are project-scoped, point-in-time, immutable post-acceptance. Research docs are reusable cross-project.
+- Postmortems cover any wrong decision costing >1 day — not just production incidents.
+- Supersession: update old doc's status to `superseded`, move to `archive/`, update `index.md`. Never delete.
+- When creating any doc: add a row to `docs/index.md` immediately.
+- When looking for docs: read `docs/index.md` first before scanning the tree.
