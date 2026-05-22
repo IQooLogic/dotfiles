@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+    "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "opencode-go/deepseek-v4-pro",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow"
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    }
+  }
+}
