@@ -2,19 +2,7 @@
   "attribution": {
     "commit": ""
   },
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "CRITICAL: Your entire response must be a single JSON object. No markdown, no code fences, no explanation — ONLY raw JSON.\n\nCheck if this session created or modified any files under a docs/ directory. If none were touched, respond: {\"decision\": \"approve\", \"reason\": \"No docs changed.\"}\n\nIf docs were touched, verify: (1) file is in the correct subdirectory per the docs convention in CLAUDE.md (plans, specs, adrs, research, benchmarks, notes), (2) filename follows YYYYMMDD_slug.md with lowercase hyphen-separated slug, (3) file has front-matter with title, status, and date, (4) docs/index.md has been updated with an entry for every new or renamed doc sorted by date descending, (5) superseded docs were moved to archive with status updated.\n\nIf all rules pass: {\"decision\": \"approve\", \"reason\": \"Docs convention verified.\"}\nIf any rule is violated: {\"decision\": \"block\", \"reason\": \"<list violations>\"}\n\nRemember: Output ONLY the JSON object. First character must be {, last character must be }."
-          }
-        ]
-      }
-    ]
-  },
+  "hooks": {},
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline-zig.sh",
