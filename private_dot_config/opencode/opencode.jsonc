@@ -3,7 +3,7 @@
     "agent": {
     "build": {
       "mode": "primary",
-      "model": "opencode-go/deepseek-v4-pro",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "allow",
         "bash": "allow"
@@ -11,12 +11,13 @@
     },
     "plan": {
       "mode": "primary",
-      "model": "opencode-go/deepseek-v4-flash",
+      "model": "opencode-go/deepseek-v4-pro",
       "permission": {
         "edit": "deny",
         "bash": "deny"
       }
     }
   },
-  "lsp": true
+  "lsp": true,
+  "shell": "/usr/bin/zsh"
 }

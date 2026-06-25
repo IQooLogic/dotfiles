@@ -60,3 +60,10 @@ Host 49.13.131.191
   IdentityFile "~/.ssh/gitlab"
   HostKeyAlgorithms ssh-ed25519
   PubkeyAcceptedKeyTypes ssh-ed25519
+
+Host 135.181.82.78
+  Hostname 135.181.82.78
+  User root
+  IdentityFile "~/.ssh/gitlab"
+  HostKeyAlgorithms ssh-ed25519
+  PubkeyAcceptedKeyTypes ssh-ed25519
